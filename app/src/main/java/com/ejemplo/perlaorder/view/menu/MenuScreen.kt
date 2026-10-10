@@ -1,6 +1,7 @@
 package com.ejemplo.perlaorder.view.menu
 
 import androidx.compose.foundation.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,13 +15,28 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ejemplo.perlaorder.data.local.entity.Plato
 import com.ejemplo.perlaorder.util.comoSoles
 import com.ejemplo.perlaorder.view.theme.*
+import com.ejemplo.perlaorder.viewmodel.EstadoOperacion
 import com.ejemplo.perlaorder.viewmodel.MenuUiState
 import com.ejemplo.perlaorder.viewmodel.MenuViewModel
+
+/** Rojo del Snackbar de error de conexión (Actividad 09). */
+private val RojoError = Color(0xFFB3261E)
+
+/** Snackbar con un dato extra: si es de error se pinta de rojo y dura más para poder capturarlo. */
+private class VisualesPerla(
+    override val message: String,
+    val esError: Boolean
+) : SnackbarVisuals {
+    override val actionLabel: String? = null
+    override val withDismissAction: Boolean = esError
+    override val duration: SnackbarDuration = if (esError) SnackbarDuration.Long else SnackbarDuration.Short
+}
 
 @Composable
 fun MenuScreen(viewModel: MenuViewModel) {
@@ -28,27 +44,47 @@ fun MenuScreen(viewModel: MenuViewModel) {
     val snackbarHostState = remember { SnackbarHostState() }
     var platoEnEdicion by remember { mutableStateOf<Plato?>(null) }
 
-    LaunchedEffect(state.mensajeInfo) {
-        state.mensajeInfo?.let {
-            snackbarHostState.showSnackbar(it)
-            viewModel.limpiarMensaje()
+    // Estados Exito / Falla -> Snackbar (normal o rojo) y luego se vuelve a Inactivo.
+    LaunchedEffect(state.operacion) {
+        when (val op = state.operacion) {
+            is EstadoOperacion.Exito -> snackbarHostState.showSnackbar(VisualesPerla(op.mensaje, esError = false))
+            is EstadoOperacion.Falla -> snackbarHostState.showSnackbar(VisualesPerla(op.mensaje, esError = true))
+            else -> return@LaunchedEffect
         }
+        viewModel.operacionAtendida()
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { datos ->
+                val esError = (datos.visuals as? VisualesPerla)?.esError == true
+                val contenedor = if (esError) RojoError else SnackbarDefaults.color
+                val contenido = if (esError) Color.White else SnackbarDefaults.contentColor
+                Snackbar(
+                    snackbarData = datos,
+                    containerColor = contenedor,
+                    contentColor = contenido,
+                    dismissActionContentColor = contenido
+                )
+            }
+        },
         topBar = { Encabezado(onActualizar = viewModel::actualizarCarta) }
     ) { padding ->
-        Row(
-            Modifier.fillMaxSize().padding(padding).padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            FormularioPlato(state, viewModel::agregarPlato, Modifier.weight(0.35f))
-            CartaPlatos(
-                state, viewModel::seleccionarCategoria, viewModel::alternarDisponibilidad,
-                { platoEnEdicion = it }, viewModel::darDeBaja,
-                Modifier.weight(0.65f).fillMaxHeight()
-            )
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            Row(
+                Modifier.fillMaxSize().padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                FormularioPlato(state, viewModel::agregarPlato, Modifier.weight(0.35f))
+                CartaPlatos(
+                    state, viewModel::seleccionarCategoria, viewModel::alternarDisponibilidad,
+                    { platoEnEdicion = it }, viewModel::darDeBaja,
+                    Modifier.weight(0.65f).fillMaxHeight()
+                )
+            }
+            // Estado Cargando -> indicador de progreso sobre toda la pantalla.
+            val operacion = state.operacion
+            if (operacion is EstadoOperacion.Cargando) IndicadorCarga(operacion.detalle)
         }
     }
 
@@ -57,6 +93,16 @@ fun MenuScreen(viewModel: MenuViewModel) {
             plato = plato,
             onCerrar = { platoEnEdicion = null },
             onGuardar = { nombre, precio -> viewModel.editarPlato(plato, nombre, precio) }
+        )
+    }
+
+    // Diálogo de acceso: aparece cuando se intenta guardar un plato sin sesión iniciada.
+    if (state.mostrarLogin) {
+        DialogoLogin(
+            error = state.errorLogin,
+            enviando = state.enviandoLogin,
+            onCerrar = viewModel::cerrarLogin,
+            onIngresar = viewModel::iniciarSesion
         )
     }
 }
@@ -81,6 +127,38 @@ private fun Encabezado(onActualizar: () -> Unit) {
             }
         }
         BandaAguayo()
+    }
+}
+
+/** Capa semitransparente con CircularProgressIndicator mientras hay una petición al servidor. */
+@Composable
+private fun IndicadorCarga(detalle: String) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.35f))
+            // Consume los toques para que no se pueda pulsar nada mientras se envía.
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {}
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        ) {
+            Row(
+                Modifier.padding(horizontal = 28.dp, vertical = 24.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                CircularProgressIndicator()
+                Text(detalle, style = MaterialTheme.typography.titleMedium)
+            }
+        }
     }
 }
 
@@ -117,6 +195,11 @@ private fun FormularioPlato(
     var categoriaElegida by remember { mutableStateOf<Int?>(null) }
     val categoriaId = categoriaElegida ?: state.categorias.firstOrNull()?.id
 
+    // El formulario se limpia solo cuando el servidor confirma que registró el plato.
+    LaunchedEffect(state.platosRegistrados) {
+        if (state.platosRegistrados > 0) { nombre = ""; descripcion = ""; precio = "" }
+    }
+
     Card(
         modifier,
         shape = RoundedCornerShape(16.dp),
@@ -142,13 +225,20 @@ private fun FormularioPlato(
                 }
             }
             Button(
-                onClick = {
-                    if (onGuardar(nombre, descripcion, precio, categoriaId)) {
-                        nombre = ""; descripcion = ""; precio = ""
-                    }
-                },
+                onClick = { onGuardar(nombre, descripcion, precio, categoriaId) },
+                enabled = !state.cargando,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
-            ) { Text("Guardar plato") }
+            ) {
+                if (state.cargando) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = LocalContentColor.current
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(if (state.cargando) "Enviando..." else "Guardar plato")
+            }
             state.mensajeError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
     }
@@ -251,6 +341,40 @@ private fun DialogoEdicion(
                 },
                 modifier = Modifier.heightIn(min = 48.dp)
             ) { Text("Guardar cambios") }
+        },
+        dismissButton = { TextButton(onClick = onCerrar, modifier = Modifier.heightIn(min = 48.dp)) { Text("Cancelar") } }
+    )
+}
+
+@Composable
+private fun DialogoLogin(
+    error: String?,
+    enviando: Boolean,
+    onCerrar: () -> Unit,
+    onIngresar: (String, String) -> Unit
+) {
+    var usuario by remember { mutableStateOf("") }
+    var contrasena by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onCerrar,
+        title = { Text("Acceso del personal") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Para registrar platos en el servidor, inicie sesión como administrador.")
+                OutlinedTextField(usuario, { usuario = it }, label = { Text("Usuario") }, singleLine = true)
+                OutlinedTextField(contrasena, { contrasena = it }, label = { Text("Contraseña") }, singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onIngresar(usuario, contrasena) },
+                enabled = !enviando,
+                modifier = Modifier.heightIn(min = 48.dp)
+            ) { Text(if (enviando) "Ingresando..." else "Iniciar sesión") }
         },
         dismissButton = { TextButton(onClick = onCerrar, modifier = Modifier.heightIn(min = 48.dp)) { Text("Cancelar") } }
     )
