@@ -1,0 +1,8 @@
+.gradle/
+build/
+.idea/
+*.iml
+.kotlin/
+# Datos y secretos locales: nunca al repositorio
+data/
+.env
