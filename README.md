@@ -1,4 +1,4 @@
-# 🍽️ PerlaOrder — Sistema POS & Carta Digital en Tablet (Offline-First)
+# PerlaOrder — Sistema POS & Carta Digital en Tablet (Offline-First)
 
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.0+-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)
 ![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white)
@@ -10,7 +10,7 @@
 
 ---
 
-## 🎯 Problema de Negocio y Solución de Ingeniería
+## Problema de Negocio y Solución de Ingeniería
 
 Los restaurantes MYPE con alta rotación en horarios punta enfrentan pérdidas operativas por el uso de cartas físicas desactualizadas, errores en la toma manual de comandas y caídas frecuentes de la red Wi-Fi del local.
 
@@ -22,7 +22,7 @@ Los restaurantes MYPE con alta rotación en horarios punta enfrentan pérdidas o
 
 ---
 
-## 🏗️ Arquitectura del Sistema (MVVM + Flujo Unidireccional)
+## Arquitectura del Sistema (MVVM + Flujo Unidireccional)
 
 ```mermaid
 graph TD
