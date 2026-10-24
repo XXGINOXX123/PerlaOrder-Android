@@ -1,5 +1,7 @@
 package com.ejemplo.perlaorder.model
 
+/** Valores de clase  Linea pedido */
+
 data class LineaPedido(
     val itemId: Long,
     val platoId: Int,

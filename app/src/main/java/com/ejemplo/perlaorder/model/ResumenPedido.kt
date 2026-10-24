@@ -1,5 +1,7 @@
 package com.ejemplo.perlaorder.model
 
+/** Valores de clase  Resumen Pedido */
+
 data class ResumenPedido(
     val lineas: List<LineaPedido> = emptyList(),
     val totalCentimos: Long = 0,

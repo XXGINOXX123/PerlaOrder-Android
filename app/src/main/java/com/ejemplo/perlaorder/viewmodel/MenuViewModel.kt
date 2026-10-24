@@ -241,6 +241,7 @@ class MenuViewModel(private val repositorio: MenuRepository) : ViewModel() {
     }
 
     // ---- DELETE: DELETE /api/v1/platos/{id} ----
+    /** Se elimina el plato segun el id */
     fun darDeBaja(plato: Plato) {
         if (!repositorio.haySesion) {
             gestion.update { it.copy(mostrarLogin = true, errorLogin = null) }
