@@ -26,9 +26,10 @@ Los restaurantes MYPE con alta rotación en horarios punta enfrentan pérdidas o
 
 ```mermaid
 graph TD
-    UI["Capa UI (Jetpack Compose)<br/>MainActivity · MenuScreen"] -->|Eventos de usuario| VM["Capa ViewModel<br/>MenuViewModel · StateFlow&lt;MenuUiState&gt;"]
+    UI["Capa UI (Jetpack Compose)<br/>MainActivity · MenuScreen"] -->|Eventos de usuario| VM["Capa ViewModel<br/>MenuViewModel · StateFlow#lt;MenuUiState#gt;"]
     VM -->|Estado observable| UI
     VM -->|Funciones suspend / Flow| REPO["Capa Repository<br/>MenuRepository (Fuente única de acceso)"]
     REPO -->|SQL parametrizado / Flow| ROOM["Datos Locales (Room SQLite)<br/>AppDatabase · PlatoDao · PedidoDao"]
-    REPO -->|HTTP REST JSON (Timeout 5s)| RETROFIT["Datos Remotos (Retrofit + OkHttp)<br/>PerlaApiService · RetrofitClient"]
+    REPO -->|"HTTP REST JSON (Timeout 5s)"| RETROFIT["Datos Remotos (Retrofit + OkHttp)<br/>PerlaApiService · RetrofitClient"]
     RETROFIT <-->|LAN Local| KTOR["Servidor Backend REST<br/>Ktor 3 (Netty) + Exposed"]
+```
