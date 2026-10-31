@@ -1,0 +1,19 @@
+## Mejoras realizadas en PerlaOrder
+
+Se agregaron dos archivos de pruebas unitarias para verificar el correcto funcionamiento de las validaciones de platos y los cálculos de pedidos, sin modificar las funcionalidades existentes de la aplicación.
+
+### 1. ValidadorPlatoTest.kt
+
+**Ruta:** `app/src/test/java/com/ejemplo/perlaorder/ValidadorPlatoTest.kt`
+
+Se implementaron 8 pruebas unitarias para validar los nombres y precios de los platos. Estas permiten comprobar el manejo de campos vacíos, precios negativos, valores no numéricos y formatos decimales, asegurando que los datos ingresados cumplan con las reglas establecidas.
+
+### 2. CalculadoraPedidoTest.kt
+
+**Ruta:** `app/src/test/java/com/ejemplo/perlaorder/CalculadoraPedidoTest.kt`
+
+Se implementaron 3 pruebas unitarias para verificar el cálculo de los importes de los pedidos. Estas comprueban el comportamiento con pedidos vacíos, un solo producto y múltiples productos, verificando que los totales se calculen correctamente.
+
+### Resultado
+
+Se agregaron **11 pruebas unitarias** en total, las cuales fueron ejecutadas y verificadas en Android Studio. Estas pruebas ayudan a detectar posibles errores y mejorar la estabilidad del proyecto ante futuras modificaciones.

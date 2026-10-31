@@ -1,0 +1,80 @@
+# DOCUMENTACIÓN DE CAMBIOS – VISTA CLIENTE Y GESTIÓN DE PEDIDOS
+
+## 1. Descripción general
+
+Se implementó una nueva vista para los clientes de PerlaOrder, permitiendo visualizar la carta digital, seleccionar platos y organizar los productos dentro de la sección «Mi pedido».
+
+Además, se separó la vista Cliente de la vista Administración, conservando las funcionalidades de gestión de platos para el personal autorizado.
+
+## 2. Cambios realizados
+
+### 2.1. Vista Cliente
+
+**Archivo modificado:**
+`app/src/main/java/com/ejemplo/perlaorder/view/menu/MenuScreen.kt`
+
+Se incorporó una interfaz dirigida al cliente, donde se muestran los nombres, descripciones, precios y disponibilidad de los platos.
+
+Se agregó el botón «Agregar al pedido» en cada producto y el botón «Mi pedido» en la parte superior de la aplicación.
+
+También se ocultaron las opciones administrativas de crear, editar, dar de baja y marcar platos agotados.
+
+### 2.2. Vista Administración
+
+**Archivos modificados:**
+- `MenuScreen.kt`
+- `MenuViewModel.kt`
+
+Se separaron las funciones administrativas de la vista Cliente, conservando el inicio de sesión del personal autorizado para gestionar los platos del restaurante.
+
+### 2.3. Gestión visual de pedidos
+
+**Archivo agregado:**
+`app/src/main/java/com/ejemplo/perlaorder/view/pedido/PedidoScreen.kt`
+
+Se implementó la pantalla «Mi pedido», donde se visualizan los productos seleccionados.
+
+La interfaz permite aumentar o disminuir cantidades, eliminar productos y calcular automáticamente el importe total.
+
+Cuando se selecciona varias veces un mismo plato, se agrupa en un único registro visual con su cantidad correspondiente.
+
+### 2.4. Mejoras en el diseño
+
+**Archivo modificado:**
+`PedidoScreen.kt`
+
+Se reorganizó la pantalla de pedidos para mejorar su presentación.
+
+Los platos seleccionados se muestran en un contenedor blanco, con el nombre, precio unitario, controles de cantidad, subtotal y opción para eliminar el producto.
+
+En la parte inferior se colocaron horizontalmente el número de mesa, el importe total y el botón «Confirmar pedido».
+
+También se mantuvo el mensaje informativo: «El importe es referencial. El pago se realiza en el restaurante».
+
+## 3. Componentes reutilizados
+
+Se aprovecharon componentes existentes del proyecto, como Room, PedidoDao, LineaPedido, ResumenPedido y MenuRepository, evitando duplicar innecesariamente la lógica de gestión y cálculo de pedidos.
+
+También se mantuvo la identidad visual de PerlaOrder, utilizando los colores morado, crema y blanco.
+
+## 4. Estado actual
+
+La vista Cliente y la pantalla «Mi pedido» se encuentran implementadas a nivel de interfaz, con selección de platos, modificación de cantidades y cálculo de importes.
+
+Sin embargo, todavía no se ha completado ni verificado el registro definitivo de los pedidos en la base de datos del servidor Ktor.
+
+Por lo tanto, esta mejora se considera parcialmente implementada.
+
+## 5. Funcionalidades pendientes
+
+- Completar y comprobar el envío de pedidos al servidor Ktor.
+- Verificar el almacenamiento correcto de los pedidos en la base de datos SQLite del servidor.
+- Validar que los productos y cantidades se registren correctamente.
+- Mostrar una pantalla de confirmación cuando el servidor registre exitosamente un pedido.
+- Realizar pruebas de integración entre Android, Ktor y la base de datos.
+
+## 6. Conclusión
+
+Se mejoró la organización de PerlaOrder mediante la separación de las vistas Cliente y Administración, incorporando una interfaz de selección y resumen de pedidos.
+
+Estos cambios permiten avanzar hacia un sistema de pedidos digitales para el restaurante. Como siguiente etapa, queda pendiente completar la integración con el servidor y verificar la persistencia de los pedidos en la base de datos.
