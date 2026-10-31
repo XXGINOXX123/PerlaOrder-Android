@@ -10,6 +10,8 @@ import com.ejemplo.perlaorder.util.ValidadorPlato
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import com.ejemplo.perlaorder.model.*
+import java.util.UUID
 
 /**
  * SOLO PARA TOMAR LA CAPTURA DEL ESTADO DE CARGA (Actividad 09).
@@ -86,6 +88,45 @@ class MenuViewModel(private val repositorio: MenuRepository) : ViewModel() {
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MenuUiState())
 
+    val pedido: StateFlow<ResumenPedido> = repositorio.lineasPedido
+        .map { CalculadoraPedido.resumir(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ResumenPedido())
+    private val _enviandoPedido = MutableStateFlow(false)
+    val enviandoPedido: StateFlow<Boolean> = _enviandoPedido.asStateFlow()
+    private val _mensajePedido = MutableStateFlow<String?>(null)
+    val mensajePedido: StateFlow<String?> = _mensajePedido.asStateFlow()
+    private var clavePedido: String? = null
+
+    fun consumirMensajePedido() { _mensajePedido.value = null }
+    fun agregarAlCarrito(plato: Plato) = viewModelScope.launch {
+        runCatching { repositorio.agregarAlPedido(plato) }
+            .onSuccess { clavePedido = null }
+            .onFailure { _mensajePedido.value = it.message ?: "No se pudo agregar el plato." }
+    }
+    fun cambiarCantidad(itemId: Long, nuevaCantidad: Int) = viewModelScope.launch {
+        repositorio.cambiarCantidad(itemId, nuevaCantidad)
+        clavePedido = null
+    }
+    fun confirmarPedido(mesa: Int) {
+        if (_enviandoPedido.value) return
+        val lineas = pedido.value.lineas
+        if (lineas.isEmpty()) { _mensajePedido.value = "El carrito está vacío."; return }
+        if (mesa !in 1..20) { _mensajePedido.value = "La mesa debe estar entre 1 y 20."; return }
+        val clave = clavePedido ?: UUID.randomUUID().toString().also { clavePedido = it }
+        _enviandoPedido.value = true
+        viewModelScope.launch {
+            repositorio.confirmarPedido(mesa, lineas, clave)
+                .onSuccess { id ->
+                    clavePedido = null
+                    _mensajePedido.value = "Pedido #$id confirmado correctamente."
+                }
+                .onFailure { e ->
+                    _mensajePedido.value = "No se pudo confirmar el pedido: ${e.message}. Puede reintentar."
+                }
+            _enviandoPedido.value = false
+        }
+    }
+
     init { viewModelScope.launch { repositorio.prepararCarta() } }
 
     fun seleccionarCategoria(id: Int?) { categoriaSeleccionada.value = id }
@@ -146,6 +187,12 @@ class MenuViewModel(private val repositorio: MenuRepository) : ViewModel() {
     }
 
     // ---- Sesión del personal ----
+    fun haySesionAdministrativa(): Boolean = repositorio.haySesion
+
+    fun solicitarAccesoAdministrativo() {
+        gestion.update { it.copy(mostrarLogin = true, errorLogin = null) }
+    }
+
     fun cerrarLogin() { gestion.update { it.copy(mostrarLogin = false, errorLogin = null) } }
 
     fun iniciarSesion(usuario: String, contrasena: String) {

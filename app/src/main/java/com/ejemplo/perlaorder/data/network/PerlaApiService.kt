@@ -20,6 +20,9 @@ interface PerlaApiService {
     @DELETE("api/v1/platos/{id}")          // DELETE (baja lógica)
     suspend fun darDeBajaPlato(@Header("Authorization") autorizacion: String, @Path("id") id: Int): Response<Unit>
 
+    @POST("api/v1/pedidos")
+    suspend fun registrarPedido(@Body pedido: PedidoCrearDto): Response<PedidoRegistradoDto>
+
     @POST("api/comandas")                  // se integra en un sprint posterior
     suspend fun enviarComanda(@Body comanda: ComandaRequest): Response<Unit>
 }

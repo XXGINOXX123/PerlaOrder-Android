@@ -7,6 +7,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PedidoDao {
+    @Query("SELECT * FROM pedido_items WHERE plato_id = :platoId LIMIT 1")
+    suspend fun buscarPorPlato(platoId: Int): PedidoItem?
+
     @Insert
     suspend fun insertar(item: PedidoItem): Long
 

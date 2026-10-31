@@ -9,6 +9,7 @@ import com.ejemplo.perlaorder.data.network.dto.*
 import com.ejemplo.perlaorder.model.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.withLock
 import retrofit2.Response
 import java.io.IOException
 
@@ -25,6 +26,40 @@ class MenuRepository(
     private val pedidoDao: PedidoDao,
     private val api: PerlaApiService
 ) {
+    private val cerrojoPedido = kotlinx.coroutines.sync.Mutex()
+
+    suspend fun agregarAlPedido(plato: Plato) = cerrojoPedido.withLock {
+        require(plato.activo && !plato.agotado) { "El plato no está disponible." }
+        val anterior = pedidoDao.buscarPorPlato(plato.id)
+        if (anterior == null) pedidoDao.insertar(PedidoItem(platoId = plato.id, cantidad = 1))
+        else if (anterior.cantidad < 99) pedidoDao.actualizarCantidad(anterior.id, anterior.cantidad + 1)
+    }
+
+    suspend fun vaciarPedido() = cerrojoPedido.withLock { pedidoDao.vaciar() }
+
+    suspend fun confirmarPedido(mesa: Int, lineas: List<LineaPedido>, clave: String): Result<Long> {
+        return try {
+            require(mesa in 1..20) { "Seleccione una mesa válida (1 a 20)." }
+            require(lineas.isNotEmpty()) { "El carrito está vacío." }
+            val solicitud = PedidoCrearDto(clave, mesa, lineas.map {
+                PedidoLineaCrearDto(it.platoId, it.cantidad, it.indicaciones)
+            })
+            val respuesta = api.registrarPedido(solicitud)
+            if (!respuesta.isSuccessful || respuesta.body() == null)
+                Result.failure(ErrorHttp(respuesta.code()))
+            else {
+                val id = respuesta.body()!!.id
+                // Se limpia únicamente cuando el servidor confirma 200 o 201.
+                cerrojoPedido.withLock { pedidoDao.vaciar() }
+                Result.success(id)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     val categorias: Flow<List<Categoria>> = platoDao.observarCategorias()
     val platosActivos: Flow<List<Plato>> = platoDao.observarPlatosActivos()
     val lineasPedido: Flow<List<LineaPedido>> = pedidoDao.observarLineas()

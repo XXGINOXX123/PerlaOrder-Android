@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -24,6 +25,7 @@ import com.ejemplo.perlaorder.view.theme.*
 import com.ejemplo.perlaorder.viewmodel.EstadoOperacion
 import com.ejemplo.perlaorder.viewmodel.MenuUiState
 import com.ejemplo.perlaorder.viewmodel.MenuViewModel
+import com.ejemplo.perlaorder.view.pedido.PedidoScreen
 
 /** Rojo del Snackbar de error de conexión (Actividad 09). */
 private val RojoError = Color(0xFFB3261E)
@@ -41,8 +43,19 @@ private class VisualesPerla(
 @Composable
 fun MenuScreen(viewModel: MenuViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val pedido by viewModel.pedido.collectAsStateWithLifecycle()
+    val enviandoPedido by viewModel.enviandoPedido.collectAsStateWithLifecycle()
+    val mensajePedido by viewModel.mensajePedido.collectAsStateWithLifecycle()
+    var mostrarCarrito by remember { mutableStateOf(false) }
+    var vistaCliente by rememberSaveable { mutableStateOf(true) }
     val snackbarHostState = remember { SnackbarHostState() }
     var platoEnEdicion by remember { mutableStateOf<Plato?>(null) }
+    LaunchedEffect(mensajePedido) {
+        mensajePedido?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.consumirMensajePedido()
+        }
+    }
 
     // Estados Exito / Falla -> Snackbar (normal o rojo) y luego se vuelve a Inactivo.
     LaunchedEffect(state.operacion) {
@@ -68,18 +81,39 @@ fun MenuScreen(viewModel: MenuViewModel) {
                 )
             }
         },
-        topBar = { Encabezado(onActualizar = viewModel::actualizarCarta) }
+        topBar = { Encabezado(
+            onActualizar = viewModel::actualizarCarta,
+            onPedido = { mostrarCarrito = true },
+            cantidad = pedido.cantidadProductos,
+            vistaCliente = vistaCliente,
+            onCambiarVista = { destinoCliente ->
+                if (destinoCliente) { vistaCliente = true; mostrarCarrito = false }
+                else if (viewModel.haySesionAdministrativa()) { vistaCliente = false; mostrarCarrito = false }
+                else viewModel.solicitarAccesoAdministrativo()
+            }
+        ) }
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
-            Row(
+            if (mostrarCarrito) {
+                PedidoScreen(pedido, enviandoPedido, onVolver = { mostrarCarrito = false },
+                    onCantidad = viewModel::cambiarCantidad, onConfirmar = viewModel::confirmarPedido)
+            } else if (vistaCliente) {
+                CartaPlatos(
+                    state, viewModel::seleccionarCategoria, viewModel::alternarDisponibilidad,
+                    { platoEnEdicion = it }, viewModel::darDeBaja, viewModel::agregarAlCarrito,
+                    Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 14.dp),
+                    vistaCliente = true
+                )
+            } else Row(
                 Modifier.fillMaxSize().padding(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 FormularioPlato(state, viewModel::agregarPlato, Modifier.weight(0.35f))
                 CartaPlatos(
                     state, viewModel::seleccionarCategoria, viewModel::alternarDisponibilidad,
-                    { platoEnEdicion = it }, viewModel::darDeBaja,
-                    Modifier.weight(0.65f).fillMaxHeight()
+                    { platoEnEdicion = it }, viewModel::darDeBaja, viewModel::agregarAlCarrito,
+                    Modifier.weight(0.65f).fillMaxHeight(),
+                    vistaCliente = false
                 )
             }
             // Estado Cargando -> indicador de progreso sobre toda la pantalla.
@@ -108,22 +142,37 @@ fun MenuScreen(viewModel: MenuViewModel) {
 }
 
 @Composable
-private fun Encabezado(onActualizar: () -> Unit) {
+private fun Encabezado(
+    onActualizar: () -> Unit,
+    onPedido: () -> Unit,
+    cantidad: Int,
+    vistaCliente: Boolean,
+    onCambiarVista: (Boolean) -> Unit
+) {
     Column {
         Surface(color = MaterialTheme.colorScheme.primary, contentColor = Color.White) {
             Row(
-                Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 24.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Column(Modifier.weight(1f)) {
                     Text("La Perla del Sabor", style = MaterialTheme.typography.headlineSmall)
-                    Text("Comida típica regional · Carta digital")
+                    Text(if (vistaCliente) "Carta digital · Haz tu pedido" else "Administración · Gestión de carta")
+                }
+                TextButton(onClick = { onCambiarVista(!vistaCliente) }) {
+                    Text(if (vistaCliente) "Administración" else "Vista cliente", color = Color.White)
                 }
                 Button(
                     onClick = onActualizar,
-                    modifier = Modifier.heightIn(min = 48.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = AmarilloMadera, contentColor = MarronMadera)
-                ) { Text("Actualizar carta") }
+                ) { Text("Actualizar") }
+                if (vistaCliente) {
+                    Button(onClick = onPedido,
+                        colors = ButtonDefaults.buttonColors(containerColor = AmarilloMadera, contentColor = MarronMadera)) {
+                        Text("Mi pedido ($cantidad)")
+                    }
+                }
             }
         }
         BandaAguayo()
@@ -251,10 +300,12 @@ private fun CartaPlatos(
     onAlternar: (Plato) -> Unit,
     onEditar: (Plato) -> Unit,
     onBaja: (Plato) -> Unit,
-    modifier: Modifier
+    onAgregar: (Plato) -> Unit,
+    modifier: Modifier,
+    vistaCliente: Boolean
 ) {
     Column(modifier) {
-        Text("Carta", style = MaterialTheme.typography.headlineSmall)
+        Text(if (vistaCliente) "Nuestra carta" else "Carta", style = MaterialTheme.typography.headlineSmall)
         Row(
             Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -266,7 +317,7 @@ private fun CartaPlatos(
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(state.platos, key = { it.id }) { plato ->
-                TarjetaPlato(plato, onAlternar, onEditar, onBaja)
+                TarjetaPlato(plato, onAlternar, onEditar, onBaja, onAgregar, vistaCliente)
             }
         }
     }
@@ -277,7 +328,9 @@ private fun TarjetaPlato(
     plato: Plato,
     onAlternar: (Plato) -> Unit,
     onEditar: (Plato) -> Unit,
-    onBaja: (Plato) -> Unit
+    onBaja: (Plato) -> Unit,
+    onAgregar: (Plato) -> Unit,
+    vistaCliente: Boolean
 ) {
     Card(
         Modifier.fillMaxWidth().alpha(if (plato.agotado) 0.7f else 1f),
@@ -285,29 +338,30 @@ private fun TarjetaPlato(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(plato.nombre, style = MaterialTheme.typography.titleMedium)
-                Text(plato.descripcion)
-                Spacer(Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primaryContainer) {
-                        Text(
-                            plato.precioCentimos.comoSoles(),
-                            Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(plato.nombre, style = MaterialTheme.typography.titleMedium)
+            if (plato.descripcion.isNotBlank()) Text(plato.descripcion, style = MaterialTheme.typography.bodyMedium)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primaryContainer) {
+                    Text(plato.precioCentimos.comoSoles(), Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+                if (plato.agotado) Text("AGOTADO", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                if (vistaCliente) {
+                    Button(onClick = { onAgregar(plato) }, enabled = !plato.agotado && plato.activo) {
+                        Text("+ Agregar al pedido")
                     }
-                    if (plato.agotado)   // texto, no solo color (RNF-13)
-                        Text("AGOTADO", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                 }
             }
-            TextButton({ onAlternar(plato) }, Modifier.heightIn(min = 48.dp)) {
-                Text(if (plato.agotado) "Marcar disponible" else "Marcar agotado")
+            if (!vistaCliente) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    TextButton({ onAlternar(plato) }) { Text(if (plato.agotado) "Disponible" else "Agotado") }
+                    TextButton({ onEditar(plato) }) { Text("Editar") }
+                    TextButton({ onBaja(plato) }) { Text("Dar de baja") }
+                }
             }
-            TextButton({ onEditar(plato) }, Modifier.heightIn(min = 48.dp)) { Text("Editar") }
-            TextButton({ onBaja(plato) }, Modifier.heightIn(min = 48.dp)) { Text("Dar de baja") }
         }
     }
 }
